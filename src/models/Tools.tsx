@@ -63,7 +63,7 @@ export class Tools {
         '-6' : 'R'
     };
 
-    static uciPromote = {
+    static uciPromote:any = {
         'q': -5,
         'Q': 5,
         'r': -4,

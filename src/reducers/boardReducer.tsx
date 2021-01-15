@@ -1,4 +1,4 @@
-import {BOARD_INIT, BOARD_MOUSE_DOWN, BOARD_MOUSE_UP, BOARD_MOUSE_LEAVE} from "../constants/actionTypes";
+import {BOARD_INIT, BOARD_MOUSE_DOWN, BOARD_MOUSE_UP, BOARD_MOUSE_LEAVE, BOARD_PLAY_POS} from "../constants/actionTypes";
 
 interface Message {
     diag: any,
@@ -8,7 +8,10 @@ interface Message {
     pieceMoved: number,
     mouseDown: (diag: any, index: number) => void,
     mouseUp: (diag: any, index: number, pieceMoved: number) => void,
-    initialSquare: number
+    initialSquare: number,
+    x: number,
+    y: number,
+    width: number
 }
 
 interface Action {
@@ -28,7 +31,7 @@ export default function boardReducer(state = {}, action: Action) {
             };
         }
         case BOARD_MOUSE_DOWN: {
-            const { diag, index } = action.payload;
+            const { diag, index, x, y, width } = action.payload;
             let newDiag = [...diag];
             let pieceMoved = newDiag[index];
             newDiag[index] = 0;
@@ -36,7 +39,10 @@ export default function boardReducer(state = {}, action: Action) {
                 ...state,
                 diag: newDiag,
                 pieceMoved,
-                initialSquare: index
+                initialSquare: index,
+                x,
+                y,
+                width
             };
         }
         case BOARD_MOUSE_UP: {
@@ -57,6 +63,18 @@ export default function boardReducer(state = {}, action: Action) {
             return {
                 ...state,
                 diag: newDiag,
+                pieceMoved: null,
+                initialSquare: null
+            };
+        }
+        case BOARD_PLAY_POS: {
+            const { diag, trait } = action.payload;
+            let newDiag = [...diag];
+
+            return {
+                ...state,
+                diag: newDiag,
+                trait,
                 pieceMoved: null,
                 initialSquare: null
             };

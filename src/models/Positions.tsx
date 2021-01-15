@@ -60,23 +60,23 @@ export class Positions {
         this.list[this.list.length - 1].diag[i] = 5 * s;
     }
 
-    public isPositionPossible(position: Position): number {
+    isPositionPossible(position: Position): number {
         for (let x = 0; x < this.list.length; x++) {
-          let isEqual = true;
-          for (let y = 0; y < 64; y++) {
-            if (this.list[x].diag[y] !== position.diag[y]) {
-              isEqual = false;
-              break;
+            let isEqual = true;
+            for (let y = 0; y < 64; y++) {
+                if (this.list[x].diag[y] !== position.diag[y]) {
+                    isEqual = false;
+                    break;
+                }
             }
-          }
-          if (isEqual) {
-            return x;
-          }
+            if (isEqual) {
+                return x;
+            }
         }
         return -1;
     }
 
-    public handleCastle(i: number, currentPiece: number, currentIndex: number, position: Position): void {
+    handleCastle(i: number, currentPiece: number, currentIndex: number, position: Position): void {
         if (currentPiece === 6 && currentIndex === 60 && i === 62) {
             position.diag[63] = 0;
             position.diag[61] = 4;
@@ -95,7 +95,7 @@ export class Positions {
         }
     }
 
-    public handleEnPassant(i: number, currentPiece: number, position: Position): void {
+    handleEnPassant(i: number, currentPiece: number, position: Position): void {
         if (currentPiece === 1 && i > 15 && i < 23 && position.diag[i + 8] === -1 && this.base.diag[i] === 0) {
             position.diag[i + 8] = 0;
         }
@@ -104,7 +104,7 @@ export class Positions {
         }
     }
 
-    public isPromotePossible(i: number, j: number): boolean {
+    isPromotePossible(i: number, j: number): boolean {
         for (let x = 0; x < this.list.length; x++) {
             if (this.list[x].diag[j] === 0
                 && ((!this.list[x].trait && [2, 3, 4, 5].indexOf(this.list[x].diag[i]) !== -1)
@@ -116,7 +116,7 @@ export class Positions {
         return false;
     }
 
-    public isPieceMovable(i: number, position: Position): boolean {
+    isPieceMovable(i: number, position: Position): boolean {
         this.base = position;
         this.generate();
 
