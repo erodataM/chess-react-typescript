@@ -2,7 +2,7 @@ import {BOARD_INIT, BOARD_MOUSE_DOWN, BOARD_MOUSE_UP, BOARD_MOUSE_LEAVE, BOARD_P
 
 interface Message {
     diag: any,
-    init: () => void,
+    init: (diag: number[], trait: boolean) => void,
     trait: boolean,
     index: number,
     pieceMoved: number,
@@ -12,7 +12,10 @@ interface Message {
     x: number,
     y: number,
     width: number,
-    lastMove: number[]
+    lastMove: number[],
+    fen: string,
+    evaluation: any[],
+    moves: string[]
 }
 
 interface Action {
@@ -24,11 +27,13 @@ interface Action {
 export default function boardReducer(state = {}, action: Action) {
     switch (action.type) {
         case BOARD_INIT: {
-            const { diag, trait } = action.payload;
+            const { diag, trait, fen } = action.payload;
+            let newDiag = [...diag];
             return {
                 ...state,
-                diag,
-                trait
+                diag: newDiag,
+                trait,
+                fen
             };
         }
         case BOARD_MOUSE_DOWN: {
@@ -69,7 +74,7 @@ export default function boardReducer(state = {}, action: Action) {
             };
         }
         case BOARD_PLAY_POS: {
-            const { diag, trait, lastMove } = action.payload;
+            const { diag, trait, lastMove, fen, evaluation, moves } = action.payload;
             let newDiag = [...diag];
 
             return {
@@ -78,7 +83,10 @@ export default function boardReducer(state = {}, action: Action) {
                 trait,
                 pieceMoved: null,
                 initialSquare: null,
-                lastMove
+                lastMove,
+                fen,
+                evaluation,
+                moves
             };
         }
         default:

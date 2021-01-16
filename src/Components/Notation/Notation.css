@@ -1,0 +1,45 @@
+@font-face {
+    font-family: 'chessregular';
+    src: url(cheq_tt-webfont.woff2) format('woff2'),
+         url(cheq_tt-webfont.woff) format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
+
+.notation {
+    margin: 15px;
+    padding: 15px;
+    border: 1px solid lightgray;
+    border-radius: 10px;
+    background: lightgray;
+}
+
+.gameInfo {
+    margin-top: 10px;
+    display: block;
+    width: 100%;
+    background-color: white;
+    padding: 10px;
+    flex: 0 100%;
+}
+
+.game {
+    margin-top: 10px;
+}
+
+.chess {
+    font-family: 'chessregular', Arial, sans-serif;
+    font-size: 21px;
+}
+.move {
+    padding: 5px;
+    display: inline-block;
+}
+.count {
+    font-weight: bold;
+    margin: 0 2px;
+}
+.last {
+    background: black;
+    color: white;
+}

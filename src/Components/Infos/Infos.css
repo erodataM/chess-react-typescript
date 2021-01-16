@@ -1,0 +1,39 @@
+.infos {
+    margin: 15px;
+    padding: 15px;
+    border: 1px solid lightgray;
+    border-radius: 10px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: lightgray;
+}
+
+.traitContainer {
+    display: flex;
+}
+
+.trait {
+    height: 1rem;
+    width: 1rem;
+    border: 1px solid black;
+    margin-left: .3rem;
+}
+
+.blanc {
+    background-color: whitesmoke;
+}
+.noir {
+    background-color: black;
+}
+
+.container:not(:first-child) {
+    margin-top: 10px;
+}
+
+@media screen and (max-width: 640px) {
+    .infos {
+        margin: 5px;
+        padding: 5px;
+        width: calc(100vw - 20px);
+    }
+}

@@ -1,12 +1,12 @@
 import {BOARD_INIT, BOARD_MOUSE_DOWN, BOARD_MOUSE_UP, BOARD_MOUSE_LEAVE, BOARD_PLAY_POS} from "../constants/actionTypes";
-import { INIT_DIAG } from "../constants/chess";
 
-export const init = () => (dispatch: any) => {
+export const init = (diag: number[], trait: boolean, fen: string) => (dispatch: any) => {
     dispatch({
         type: BOARD_INIT,
         payload: {
-            diag: INIT_DIAG,
-            trait: true
+            diag,
+            trait,
+            fen
         },
     });
 }
@@ -46,13 +46,16 @@ export const mouseLeave = (diag: number[], pieceMoved: number, initialSquare: nu
     });
 }
 
-export const playPos = (diag: number[], trait: boolean, lastMove: number[]) => (dispatch: any) => {
+export const playPos = (diag: number[], trait: boolean, lastMove: number[], fen: string, evaluation: any[], moves: string[][]) => (dispatch: any) => {
     dispatch({
         type: BOARD_PLAY_POS,
         payload: {
             diag,
             trait,
-            lastMove
+            lastMove,
+            fen,
+            evaluation,
+            moves
         },
     });
 }

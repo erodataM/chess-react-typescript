@@ -9,33 +9,34 @@ import StockfishService from "../../services/StockfishService";
 import MovePiece from "./MovePiece";
 import { pieces } from "../../constants/chess";
 import Modal from 'react-modal';
+import _ from 'lodash';
 
 interface Props {
     diag: number[],
-    init: () => void,
+    init: (diag: number[], trait: boolean, fen: string) => void,
     trait: boolean,
     pieceMoved: number,
     initialSquare: number,
     mouseDown: (diag: number[], index: number, x:number, y:number, width: number) => void,
     mouseUp: (diag: number[], index: number, pieceMoved: number) => void,
     mouseLeave: (diag: number[], pieceMoved: number, initialSquare: number) => void,
-    playPos: (diag: number[], trait: boolean, lastMove: number[]) => void,
+    playPos: (diag: number[], trait: boolean, lastMove: number[], fen: string, evaluation: any[], moves: string[][]) => void,
     x: number,
     y: number,
     width: number,
     position: Position,
     lastMove: number[],
-
 }
 
 interface State {
     modalMateIsOpen: boolean,
-    modalStaleMateIsOpen: boolean
+    modalStaleMateIsOpen: boolean,
+    modalPromoteIsOpen: boolean
 }
 
 const mapDispatchToProps = (dispatch: any) => ({
-    init: () => {
-        dispatch(init());
+    init: (diag: number[], trait: boolean, fen: string) => {
+        dispatch(init(diag, trait, fen));
     },
     mouseDown: (diag: number[], index: number, x:number, y: number, width: number) => {
         dispatch(mouseDown(diag, index, x, y, width))
@@ -46,8 +47,8 @@ const mapDispatchToProps = (dispatch: any) => ({
     mouseLeave: (diag: number[], pieceMoved: number, initialSquare: number) => {
         dispatch(mouseLeave(diag, pieceMoved, initialSquare))
     },
-    playPos: (diag: number[], trait: boolean, lastMove: number[]) => {
-        dispatch(playPos(diag, trait, lastMove))
+    playPos: (diag: number[], trait: boolean, lastMove: number[], fen: string, evaluation: any[], moves: string[][]) => {
+        dispatch(playPos(diag, trait, lastMove, fen, evaluation, moves))
     }
 });
 
@@ -64,30 +65,41 @@ const mapStateToProps = (state: any) => ({
 });
 
 class Board extends React.Component<Props,State>  {
-    position = Position.getPositionFromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    game: Position[] = [];
+    fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    position = Position.getPositionFromFen(this.fen);
+    //position = Position.getPositionFromFen("rnbqk2r/ppppppP1/5n2/8/8/8/PPPPPPP1/RNBQKBNR w KQkq - 1 5");
     positions = new Positions(this.position);
     sfService = new StockfishService();
     myRef = React.createRef<HTMLDivElement>();
     squareRef = React.createRef<HTMLDivElement>();
     currentIndex = -1;
-
+    currentPiece = -1;
+    currentPromote = -1;
+    evaluation = [];
     constructor(props: Props) {
         super(props);
 
         this.state = {
             modalMateIsOpen: false,
-            modalStaleMateIsOpen: false
+            modalStaleMateIsOpen: false,
+            modalPromoteIsOpen: false
         };
     }
 
     componentDidMount() {
         const { init, playPos } = this.props;
-        init();
+        init(this.position.diag, this.position.trait, this.fen);
+        const initClone = _.cloneDeep(this.position);
+        this.game.push(initClone);
         Modal.setAppElement('#App');
+
         this.sfService.attachListener((e)=> {
             const regEval = new RegExp('info depth (15) seldepth ([0-9]*) multipv ([0-9]*) score (cp|mate) (-?[0-9]*) nodes ([0-9]*) nps ([0-9]*)( hashfull [0-9]*)? tbhits ([0-9]*) time ([0-9]*) pv (.*)');
             const matchesEval = e.data.match(regEval);
-
+            if (matchesEval) {
+                this.evaluation = matchesEval;
+            }
             const regBestmove = new RegExp('bestmove ([^ ]*)( ponder (.*))?');
             const matches = e.data.match(regBestmove);
 
@@ -120,6 +132,11 @@ class Board extends React.Component<Props,State>  {
                 const index = this.positions.isPositionPossible(newPos);
                 const lastMove = this.getLastMoveSquare(this.position, this.positions.list[index]);
                 this.position = this.positions.list[index];
+                const initClone = _.cloneDeep(this.position);
+                this.game.push(initClone);
+
+                playPos(this.position.diag, this.position.trait, lastMove, this.position.getFen(), this.evaluation, this.getAlgebraicGame());
+                this.playAudio(this.position.move_type);
 
                 this.positions.base = this.position;
                 this.positions.generate();
@@ -130,9 +147,6 @@ class Board extends React.Component<Props,State>  {
                         this.openStaleMateModal();
                     }
                 }
-
-                playPos(this.position.diag, this.position.trait, lastMove);
-                this.playAudio(this.position.move_type);
             }
 
         });
@@ -140,42 +154,78 @@ class Board extends React.Component<Props,State>  {
     }
 
     squareMouseDown(index: number, e: any) {
-        let { diag, trait, mouseDown} = this.props;
+        let { diag, trait, mouseDown } = this.props;
 
         if (trait && diag[index] > 0 && this.positions.isPieceMovable(index, this.position) && this.squareRef.current) {
             this.positions.base = JSON.parse(JSON.stringify(this.position));
             this.currentIndex = index;
+            this.currentPiece = diag[index];
             this.position.diag[index] = 0;
-            mouseDown(diag, index, e.clientX, e.clientY, this.squareRef.current.offsetWidth);
+            const x = e.clientX || e.touches[0].clientX;
+            const y = e.clientY || e.touches[0].clientY;
+            mouseDown(diag, index, x, y, this.squareRef.current.offsetWidth);
+        }
+    }
+
+    touchEnd(e: any) {
+        if (this.squareRef.current) {
+            const x = e.changedTouches[0].clientX;
+            const y = e.changedTouches[0].clientY;
+            const i = Math.floor(x / this.squareRef.current.offsetWidth);
+            const j = Math.floor(y / this.squareRef.current.offsetWidth);
+            this.squareMouseUp(i + j * 8);
         }
     }
 
     squareMouseUp(index: number) {
-        let { diag, pieceMoved, initialSquare, mouseLeave, playPos} = this.props;
+        let { diag, pieceMoved, initialSquare, mouseLeave } = this.props;
+
         if (pieceMoved) {
             if (diag[index] <= 0) {
+                const prevPiece = this.position.diag[index];
                 this.positions.handleCastle(index, pieceMoved, this.currentIndex, this.position);
                 this.positions.handleEnPassant(index, pieceMoved, this.position);
-                const prevPiece = this.position.diag[index];
+                this.handlePromote(index, this.currentIndex);
                 this.position.diag[index] = pieceMoved;
-                const positionIndex = this.positions.isPositionPossible(this.position);
-                if(positionIndex !== -1) {
-                    const lastMove = this.getLastMoveSquare(this.positions.base, this.positions.list[positionIndex]);
-                    this.position = this.positions.list[positionIndex];
-                    this.playAudio(this.position.move_type);
-                    playPos(this.position.diag, this.position.trait, lastMove);
-                    this.sfService.postMessage('ucinewgame');
-                    this.sfService.postMessage('position fen ' + this.position.getFen());
-                    this.sfService.postMessage('go depth 15');
-                } else {
-                    this.position.diag[index] = prevPiece;
-                    this.position.diag[this.currentIndex] = pieceMoved;
-                    mouseLeave(this.position.diag, pieceMoved, initialSquare);
-                }
+                this.handleMove(index, pieceMoved, initialSquare, prevPiece);
             } else {
                 this.position.diag[this.currentIndex] = pieceMoved;
                 mouseLeave(this.position.diag, pieceMoved, initialSquare);
             }
+        }
+    }
+
+    handleMove(index: number, pieceMoved: number, initialSquare: number, prevPiece: number) {
+        let { playPos, mouseLeave } = this.props;
+
+        const positionIndex = this.positions.isPositionPossible(this.position);
+
+        if(positionIndex !== -1) {
+            const lastMove = this.getLastMoveSquare(this.positions.base, this.positions.list[positionIndex]);
+            this.position = this.positions.list[positionIndex];
+            const initClone = _.cloneDeep(this.position);
+            this.game.push(initClone);
+            this.playAudio(this.position.move_type);
+
+            playPos(this.position.diag, this.position.trait, lastMove, this.position.getFen(), this.evaluation, this.getAlgebraicGame());
+
+            this.positions.base = this.position;
+            this.positions.generate();
+            if (this.positions.list.length === 0) {
+                if (this.position.isInCheck()) {
+                    this.openMateModal();
+                } else {
+                    this.openStaleMateModal();
+                }
+            } else {
+                this.sfService.postMessage('ucinewgame');
+                this.sfService.postMessage('position fen ' + this.position.getFen());
+                this.sfService.postMessage('go depth 15');
+            }
+        } else {
+            this.position.diag[index] = prevPiece;
+            this.position.diag[this.currentIndex] = pieceMoved;
+            mouseLeave(this.position.diag, pieceMoved, initialSquare);
         }
     }
 
@@ -190,8 +240,10 @@ class Board extends React.Component<Props,State>  {
         let { pieceMoved } = this.props;
         if (pieceMoved) {
             if (this.myRef.current) {
-                this.myRef.current.style.left = e.clientX - this.myRef.current.offsetWidth/2 +  'px';
-                this.myRef.current.style.top = e.clientY - this.myRef.current.offsetWidth/2 + 'px';
+                const x = e.clientX || e.touches[0].clientX;
+                const y = e.clientY || e.touches[0].clientY;
+                this.myRef.current.style.left = x - this.myRef.current.offsetWidth/2 +  'px';
+                this.myRef.current.style.top = y - this.myRef.current.offsetWidth/2 + 'px';
             }
         }
     }
@@ -220,15 +272,55 @@ class Board extends React.Component<Props,State>  {
         }));
     }
 
+    openPromoteModal() {
+        this.setState((previousState, props) => ({
+            modalPromoteIsOpen: true,
+        }));
+    }
+
+    closePromoteModal(){
+        this.setState((previousState, props) => ({
+            modalPromoteIsOpen: false,
+        }));
+    }
+
+    handlePromote(i: number, j: number): void {
+        if (this.currentPiece === 1 && this.currentIndex > 7 && this.currentIndex < 16 && i < 8 && this.positions.isPromotePossible(i, j)) {
+            this.currentPromote = i;
+            this.openPromoteModal();
+        }
+    }
+
+    choosePiece(e: any) {
+        let { pieceMoved, initialSquare } = this.props;
+
+        if (e.target.classList.contains('wn')) {
+            this.position.diag[this.currentPromote] = 2;
+        }
+        if (e.target.classList.contains('wb')) {
+            this.position.diag[this.currentPromote] = 3;
+        }
+        if (e.target.classList.contains('wr')) {
+            this.position.diag[this.currentPromote] = 4;
+        }
+        if (e.target.classList.contains('wq')) {
+            this.position.diag[this.currentPromote] = 5;
+        }
+        this.position.diag[this.currentIndex] = 0;
+        this.handleMove(this.currentPromote, pieceMoved, initialSquare, 0);
+        this.closePromoteModal();
+    }
+
     render () {
         const { diag, pieceMoved, x, y, width, lastMove } = this.props;
-        const { modalMateIsOpen, modalStaleMateIsOpen } = this.state;
+        const { modalMateIsOpen, modalStaleMateIsOpen, modalPromoteIsOpen } = this.state;
         if (diag) {
             return (
                 <div
                     className="board"
                     onMouseLeave={this.boardMouseLeave.bind(this)}
                     onMouseMove={this.mouseMove.bind(this)}
+                    onTouchMove={this.mouseMove.bind(this)}
                 >
                     {
                         diag.map((x: any, index: number) => {
@@ -244,7 +336,9 @@ class Board extends React.Component<Props,State>  {
                                     key={index}
                                     className={className}
                                     onMouseDown={this.squareMouseDown.bind(this, index)}
+                                    onTouchStart={this.squareMouseDown.bind(this, index)}
                                     onMouseUp={this.squareMouseUp.bind(this, index)}
+                                    onTouchEnd={this.touchEnd.bind(this)}
                                 >
                                 </div>
                             );
@@ -266,6 +360,21 @@ class Board extends React.Component<Props,State>  {
                     >
                         <h2>Pat !</h2>
                         <button onClick={this.closeStaleMateModal.bind(this)}>Fermer</button>
+                    </Modal>
+                    <Modal
+                        isOpen={modalPromoteIsOpen}
+                        contentLabel="Promote modal"
+                    >
+                        <div className="container-promote">
+                            <div className="square wn" onClick={this.choosePiece.bind(this)}>
+                            </div>
+                            <div className="square wb" onClick={this.choosePiece.bind(this)}>
+                            </div>
+                            <div className="square wr" onClick={this.choosePiece.bind(this)}>
+                            </div>
+                            <div className="square wq" onClick={this.choosePiece.bind(this)}>
+                            </div>
+                        </div>
                     </Modal>
                 </div>
             );
@@ -298,6 +407,85 @@ class Board extends React.Component<Props,State>  {
         }
 
         return lastMoveSquare;
+    }
+
+    getAlgebraicGame(): string[][] {
+        const result = [];
+        const tabs = [];
+
+        for (let i = 1; i < this.game.length; i++) {
+            let diffCount = 0;
+            const tab: any = [];
+            for (let j = 0; j < 64; j++) {
+                const diff = this.game[i].diag[j] - this.game[i - 1].diag[j];
+                if (diff !== 0) {
+                    diffCount++;
+                    if (this.game[i].diag[j] === 0) {
+                        tab['begin'] = j;
+                    } else {
+                        tab['end'] = j;
+                        tab['piece'] = Math.abs(this.game[i].diag[j]);
+                        tab['prise'] = this.game[i].diag[j] * this.game[i-1].diag[j] !== 0;
+                        tab['check'] = this.game[i].isInCheck();
+                    }
+                }
+            }
+            tab['diff'] = diffCount;
+            tabs.push(tab);
+        }
+
+        for (let i = 0; i < tabs.length; i++) {
+            let alg = '';
+            let piece = '';
+            if (tabs[i]['diff'] === 2) {
+                if (tabs[i]['piece'] === 1) {
+                    if (tabs[i]['prise']) {
+                        alg += this.getCoordFromPos(tabs[i]['begin'])[0] + 'x' + this.getCoordFromPos(tabs[i]['end'])[0] + this.getCoordFromPos(tabs[i]['end'])[1];
+                    } else {
+                        alg += this.getCoordFromPos(tabs[i]['end'])[0] + '' + this.getCoordFromPos(tabs[i]['end'])[1];
+                    }
+                } else {
+                    if (tabs[i]['prise']) {
+                        alg += 'x' + this.getCoordFromPos(tabs[i]['end'])[0] + this.getCoordFromPos(tabs[i]['end'])[1];
+                    } else {
+                        alg += this.getCoordFromPos(tabs[i]['end'])[0] + '' + this.getCoordFromPos(tabs[i]['end'])[1];
+                    }
+                }
+                if (tabs[i]['check']) {
+                    alg+='+';
+                }
+                piece = this.getFontPiece(tabs[i]['piece']);
+            }
+            if (tabs[i]['diff'] === 4) {
+                if (tabs[i]['begin'] === 63 && tabs[i]['end'] === 62 || tabs[i]['begin'] === 7 && tabs[i]['end'] === 6) {
+                    alg = '0-0';
+                } else {
+                    alg = '0-0-0';
+                }
+            }
+            result.push([i%2===0?Math.trunc(i / 2)+1+'.':'', alg, piece]);
+        }
+
+        return result;
+    }
+
+    getCoordFromPos(i: number) {
+        const x = i % 8;
+        const y = Math.trunc(i / 8);
+
+        return [Tools.cols[x], (8-y)];
+    }
+
+    getFontPiece(piece: number): string {
+        const tab: any = {
+            1: '',
+            2: 'h',
+            3: 'b',
+            4: 'r',
+            5: 'q',
+            6: 'k'
+        };
+        return tab[piece];
     }
 }
 
