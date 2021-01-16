@@ -11,7 +11,8 @@ interface Message {
     initialSquare: number,
     x: number,
     y: number,
-    width: number
+    width: number,
+    lastMove: number[]
 }
 
 interface Action {
@@ -68,7 +69,7 @@ export default function boardReducer(state = {}, action: Action) {
             };
         }
         case BOARD_PLAY_POS: {
-            const { diag, trait } = action.payload;
+            const { diag, trait, lastMove } = action.payload;
             let newDiag = [...diag];
 
             return {
@@ -76,7 +77,8 @@ export default function boardReducer(state = {}, action: Action) {
                 diag: newDiag,
                 trait,
                 pieceMoved: null,
-                initialSquare: null
+                initialSquare: null,
+                lastMove
             };
         }
         default:

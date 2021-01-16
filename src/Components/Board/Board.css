@@ -88,5 +88,17 @@ body,html {
 }
 
 .lastMove {
-    box-shadow: inset 0 0 0 5px rebeccapurple;
+    box-shadow: inset 0 0 0 .4vw rebeccapurple;
+}
+
+.ReactModal__Content {
+    width: 200px;
+    top: 50% !important;
+    left: 50% !important;
+    right: auto;
+    bottom: auto;
+    margin-right: -50%;
+    transform: translate(-50%, -50%);
+    height: fit-content;
+    text-align: center;
 }

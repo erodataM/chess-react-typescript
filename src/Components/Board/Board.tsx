@@ -8,6 +8,7 @@ import { Tools } from "../../models/Tools";
 import StockfishService from "../../services/StockfishService";
 import MovePiece from "./MovePiece";
 import { pieces } from "../../constants/chess";
+import Modal from 'react-modal';
 
 interface Props {
     diag: number[],
@@ -18,11 +19,18 @@ interface Props {
     mouseDown: (diag: number[], index: number, x:number, y:number, width: number) => void,
     mouseUp: (diag: number[], index: number, pieceMoved: number) => void,
     mouseLeave: (diag: number[], pieceMoved: number, initialSquare: number) => void,
-    playPos: (diag: number[], trait: boolean) => void,
+    playPos: (diag: number[], trait: boolean, lastMove: number[]) => void,
     x: number,
     y: number,
     width: number,
-    position: Position
+    position: Position,
+    lastMove: number[],
+
+}
+
+interface State {
+    modalMateIsOpen: boolean,
+    modalStaleMateIsOpen: boolean
 }
 
 const mapDispatchToProps = (dispatch: any) => ({
@@ -38,8 +46,8 @@ const mapDispatchToProps = (dispatch: any) => ({
     mouseLeave: (diag: number[], pieceMoved: number, initialSquare: number) => {
         dispatch(mouseLeave(diag, pieceMoved, initialSquare))
     },
-    playPos: (diag: number[], trait: boolean) => {
-        dispatch(playPos(diag, trait))
+    playPos: (diag: number[], trait: boolean, lastMove: number[]) => {
+        dispatch(playPos(diag, trait, lastMove))
     }
 });
 
@@ -51,10 +59,11 @@ const mapStateToProps = (state: any) => ({
     x: state.board.x,
     y: state.board.y,
     width: state.board.width,
-    position: state.board.position
+    position: state.board.position,
+    lastMove: state.board.lastMove
 });
 
-class Board extends React.Component<Props>  {
+class Board extends React.Component<Props,State>  {
     position = Position.getPositionFromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     positions = new Positions(this.position);
     sfService = new StockfishService();
@@ -62,9 +71,19 @@ class Board extends React.Component<Props>  {
     squareRef = React.createRef<HTMLDivElement>();
     currentIndex = -1;
 
+    constructor(props: Props) {
+        super(props);
+
+        this.state = {
+            modalMateIsOpen: false,
+            modalStaleMateIsOpen: false
+        };
+    }
+
     componentDidMount() {
         const { init, playPos } = this.props;
         init();
+        Modal.setAppElement('#App');
         this.sfService.attachListener((e)=> {
             const regEval = new RegExp('info depth (15) seldepth ([0-9]*) multipv ([0-9]*) score (cp|mate) (-?[0-9]*) nodes ([0-9]*) nps ([0-9]*)( hashfull [0-9]*)? tbhits ([0-9]*) time ([0-9]*) pv (.*)');
             const matchesEval = e.data.match(regEval);
@@ -99,9 +118,20 @@ class Board extends React.Component<Props>  {
                 }
 
                 const index = this.positions.isPositionPossible(newPos);
-
+                const lastMove = this.getLastMoveSquare(this.position, this.positions.list[index]);
                 this.position = this.positions.list[index];
-                playPos(this.position.diag, this.position.trait);
+
+                this.positions.base = this.position;
+                this.positions.generate();
+                if (this.positions.list.length === 0) {
+                    if (this.position.isInCheck()) {
+                        this.openMateModal();
+                    } else {
+                        this.openStaleMateModal();
+                    }
+                }
+
+                playPos(this.position.diag, this.position.trait, lastMove);
                 this.playAudio(this.position.move_type);
             }
 
@@ -113,6 +143,7 @@ class Board extends React.Component<Props>  {
         let { diag, trait, mouseDown} = this.props;
 
         if (trait && diag[index] > 0 && this.positions.isPieceMovable(index, this.position) && this.squareRef.current) {
+            this.positions.base = JSON.parse(JSON.stringify(this.position));
             this.currentIndex = index;
             this.position.diag[index] = 0;
             mouseDown(diag, index, e.clientX, e.clientY, this.squareRef.current.offsetWidth);
@@ -125,17 +156,19 @@ class Board extends React.Component<Props>  {
             if (diag[index] <= 0) {
                 this.positions.handleCastle(index, pieceMoved, this.currentIndex, this.position);
                 this.positions.handleEnPassant(index, pieceMoved, this.position);
+                const prevPiece = this.position.diag[index];
                 this.position.diag[index] = pieceMoved;
-
-                if(this.positions.isPositionPossible(this.position) !== -1) {
+                const positionIndex = this.positions.isPositionPossible(this.position);
+                if(positionIndex !== -1) {
+                    const lastMove = this.getLastMoveSquare(this.positions.base, this.positions.list[positionIndex]);
+                    this.position = this.positions.list[positionIndex];
                     this.playAudio(this.position.move_type);
-                    this.position.trait = false;
-                    playPos(this.position.diag, this.position.trait);
+                    playPos(this.position.diag, this.position.trait, lastMove);
                     this.sfService.postMessage('ucinewgame');
                     this.sfService.postMessage('position fen ' + this.position.getFen());
                     this.sfService.postMessage('go depth 15');
                 } else {
-                    this.position.diag[index] = 0;
+                    this.position.diag[index] = prevPiece;
                     this.position.diag[this.currentIndex] = pieceMoved;
                     mouseLeave(this.position.diag, pieceMoved, initialSquare);
                 }
@@ -163,8 +196,33 @@ class Board extends React.Component<Props>  {
         }
     }
 
+    openMateModal() {
+        this.setState((previousState, props) => ({
+            modalMateIsOpen: true,
+        }));
+    }
+
+    closeMateModal(){
+        this.setState((previousState, props) => ({
+            modalMateIsOpen: false,
+        }));
+    }
+
+    openStaleMateModal() {
+        this.setState((previousState, props) => ({
+            modalStaleMateIsOpen: true,
+        }));
+    }
+
+    closeStaleMateModal(){
+        this.setState((previousState, props) => ({
+            modalStaleMateIsOpen: false,
+        }));
+    }
+
     render () {
-        const { diag, pieceMoved, x, y, width } = this.props;
+        const { diag, pieceMoved, x, y, width, lastMove } = this.props;
+        const { modalMateIsOpen, modalStaleMateIsOpen } = this.state;
         if (diag) {
             return (
                 <div
@@ -177,6 +235,9 @@ class Board extends React.Component<Props>  {
                             let className = "square";
                             if (x) {
                                 className += " " + pieces[x.toString()];
+                            }
+                            if (lastMove && lastMove.indexOf(index) !== -1) {
+                                className += " lastMove";
                             }
                             return (
                                 <div
@@ -192,6 +253,20 @@ class Board extends React.Component<Props>  {
                     <div className="square hiddenPiece" ref={this.squareRef}>
                     </div>
                     <MovePiece pieceMoved={pieceMoved} pieceRef={this.myRef} x={x} y={y} width={width}/>
+                    <Modal
+                        isOpen={modalMateIsOpen}
+                        contentLabel="Mate modal"
+                    >
+                        <h2>Mat !</h2>
+                        <button onClick={this.closeMateModal.bind(this)}>Fermer</button>
+                    </Modal>
+                    <Modal
+                        isOpen={modalStaleMateIsOpen}
+                        contentLabel="Stale Mate modal"
+                    >
+                        <h2>Pat !</h2>
+                        <button onClick={this.closeStaleMateModal.bind(this)}>Fermer</button>
+                    </Modal>
                 </div>
             );
         }
@@ -212,6 +287,17 @@ class Board extends React.Component<Props>  {
 
         audio.load();
         audio.play();
+    }
+
+    getLastMoveSquare(position1: Position, position2: Position): number[] {
+        const lastMoveSquare = [];
+        for (let i = 0; i < 64; i++) {
+            if (position1.diag[i] !== position2.diag[i]) {
+                lastMoveSquare.push(i);
+            }
+        }
+
+        return lastMoveSquare;
     }
 }
 

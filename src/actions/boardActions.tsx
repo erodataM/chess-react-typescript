@@ -46,12 +46,13 @@ export const mouseLeave = (diag: number[], pieceMoved: number, initialSquare: nu
     });
 }
 
-export const playPos = (diag: number[], trait: boolean) => (dispatch: any) => {
+export const playPos = (diag: number[], trait: boolean, lastMove: number[]) => (dispatch: any) => {
     dispatch({
         type: BOARD_PLAY_POS,
         payload: {
-            diag: diag,
-            trait
+            diag,
+            trait,
+            lastMove
         },
     });
 }
