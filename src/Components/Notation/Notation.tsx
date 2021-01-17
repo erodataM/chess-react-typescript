@@ -17,19 +17,19 @@ const mapStateToProps = (state: any) => ({
 class Notation extends React.Component<Props,State>  {
     render() {
         const { moves } = this.props;
-        console.log(moves);
+
         if (moves) {
             return (
                 <div className="notation">
-                    <div><b>Blancs: </b>Joueur 123456</div>
+                    <div><b>Blancs: </b>Vous</div>
                     <div><b>Noirs: </b>Stockfish WASM</div>
                     <div className="game">
-                        {moves.map(x=> {
+                        {moves.map((x, index)=> {
                             return (
-                                <span key={x[0]}>
+                                <span key={index}>
                                     <span className="count">{x[0]}</span>
                                     <span className="chess">{x[2]}</span>
-                                    <span>{x[1]}</span>
+                                    <span>{x[1]} </span>
                                 </span>
                             );
                         })}

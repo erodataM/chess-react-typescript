@@ -12,6 +12,7 @@
     border: 1px solid lightgray;
     border-radius: 10px;
     background: lightgray;
+    word-break: keep-all;
 }
 
 .gameInfo {
@@ -37,9 +38,16 @@
 }
 .count {
     font-weight: bold;
-    margin: 0 2px;
 }
 .last {
     background: black;
     color: white;
+}
+
+@media screen and (max-width: 640px) {
+    .notation {
+        margin: 5px;
+        padding: 5px;
+        width: calc(100vw - 20px);
+    }
 }
